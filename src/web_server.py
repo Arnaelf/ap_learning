@@ -115,5 +115,5 @@ if __name__ == '__main__':
     t = threading.Thread(target=mavlink_worker, daemon=True)
     t.start()
 
-    print("Веб-сервер запущено на http://localhost:5000")
-    socketio.run(app, host='0.0.0.0', port=5000, debug=False)
+    print("Веб-сервер запущено на http://localhost:5001")
+    socketio.run(app, host='0.0.0.0', port=5001, debug=False)
