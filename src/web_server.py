@@ -38,25 +38,18 @@ def mavlink_worker():
     master.wait_heartbeat()
     print("MAVLink підключено до веб-сервера!")
 
-    # Запитуємо потрібні типи даних
+    # Запитуємо всі типи даних (включно з NAV_CONTROLLER_OUTPUT для target_roll/target_pitch)
     master.mav.request_data_stream_send(
         master.target_system,
         master.target_component,
-        mavutil.mavlink.MAV_DATA_STREAM_EXTRA1,
+        mavutil.mavlink.MAV_DATA_STREAM_ALL,
         10,
-        1,
-    )
-    master.mav.request_data_stream_send(
-        master.target_system,
-        master.target_component,
-        mavutil.mavlink.MAV_DATA_STREAM_POSITION,
-        5,
         1,
     )
     
     while True:
         # non-blocking / timeout read
-        msg = master.recv_match(blocking=True, timeout=1.0)
+        msg = master.recv_match(blocking=True)
         if not msg:
             continue
 
@@ -66,6 +59,16 @@ def mavlink_worker():
         if msg_type == 'ATTITUDE':
             plane_data['roll'] = round(math.degrees(msg.roll), 1)
             plane_data['pitch'] = round(math.degrees(msg.pitch), 1)
+            plane_data['roll_rate'] = round(math.degrees(msg.rollspeed), 1)
+            plane_data['pitch_rate'] = round(math.degrees(msg.pitchspeed), 1)
+            plane_data['yaw'] = round(math.degrees(msg.yaw), 1)
+            plane_data['boot_time'] = round(msg.time_boot_ms / 1000.0, 1)
+            plane_data['error_roll'] = round(plane_data['target_roll'] - plane_data['roll'], 1)
+
+        elif msg_type == 'NAV_CONTROLLER_OUTPUT':
+            plane_data['target_roll'] = round(msg.nav_roll, 1)
+            plane_data['target_pitch'] = round(msg.nav_pitch, 1)
+            plane_data['error_roll'] = round(plane_data['target_roll'] - plane_data['roll'], 1)
 
         elif msg_type == 'VFR_HUD':
             plane_data['speed'] = round(msg.airspeed, 1)
@@ -83,7 +86,7 @@ def mavlink_worker():
         # Відправка телеметрії в веб-сокет після обробки будь-якого повідомлення,
         # а не тільки SYS_STATUS
         socketio.emit('telemetry', plane_data)
-        socketio.sleep(0.05)  # обов'язково для eventlet/gevent!
+        socketio.sleep(0.02)  # обов'язково для eventlet/gevent!
 
 
 @app.route('/')
