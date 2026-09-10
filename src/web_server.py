@@ -68,24 +68,22 @@ def mavlink_worker():
             plane_data['pitch'] = round(math.degrees(msg.pitch), 1)
 
         elif msg_type == 'VFR_HUD':
-            plane_data['speed'] = round(msg.groundspeed, 1)
+            plane_data['speed'] = round(msg.airspeed, 1)
             plane_data['alt'] = round(msg.alt, 1)
             plane_data['heading'] = int(msg.heading)
+            plane_data['throttle'] = msg.throttle
 
         elif msg_type == 'GLOBAL_POSITION_INT':
             plane_data['lat'] = msg.lat / 1e7
             plane_data['lon'] = msg.lon / 1e7
 
-        elif msg_type == 'VFR_HUD':
-            plane_data['speed'] = round(msg.airspeed, 1)
-            plane_data['throttle'] = msg.throttle
-
         elif msg_type == 'SYS_STATUS':
             plane_data['battery'] = msg.battery_remaining
 
-            # Відправка телеметрії в веб-сокет
-            socketio.emit('telemetry', plane_data)
-            socketio.sleep(0.05)  # обов'язково для eventlet/gevent!
+        # Відправка телеметрії в веб-сокет після обробки будь-якого повідомлення,
+        # а не тільки SYS_STATUS
+        socketio.emit('telemetry', plane_data)
+        socketio.sleep(0.05)  # обов'язково для eventlet/gevent!
 
 
 @app.route('/')
