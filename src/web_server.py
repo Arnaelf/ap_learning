@@ -33,7 +33,8 @@ plane_data = {
 
 def mavlink_worker():
     """Читає телеметрію з MAVLink і оновлює plane_data"""
-    master = mavutil.mavlink_connection('udpin:127.0.0.1:14551')
+    print("Підключення до MAV-LINK")
+    master = mavutil.mavlink_connection('udpin:0.0.0.0:14551')
     master.wait_heartbeat()
     print("MAVLink підключено до веб-сервера!")
 
@@ -52,47 +53,32 @@ def mavlink_worker():
         5,
         1,
     )
-
+    
     while True:
-        msg = master.recv_match(
-            type=[
-                'ATTITUDE',
-                'NAV_CONTROLLER_OUTPUT',
-                'GLOBAL_POSITION_INT',
-                'VFR_HUD',
-                'SYS_STATUS',
-            ],
-            blocking=True,
-            timeout=1.0,
-        )
-
+        # non-blocking / timeout read
+        msg = master.recv_match(blocking=True, timeout=1.0)
         if not msg:
             continue
 
         msg_type = msg.get_type()
-
+        
+        # Обробка необхідних повідомлень
         if msg_type == 'ATTITUDE':
-            plane_data['roll'] = round(math.degrees(msg.roll), 2)
-            plane_data['pitch'] = round(math.degrees(msg.pitch), 2)
-            plane_data['yaw'] = round(math.degrees(msg.yaw), 2)
-            plane_data['roll_rate'] = round(math.degrees(msg.rollspeed), 2)
-            plane_data['pitch_rate'] = round(math.degrees(msg.pitchspeed), 2)
-            plane_data['boot_time'] = round(msg.time_boot_ms / 1000.0, 1)
+            plane_data['roll'] = round(math.degrees(msg.roll), 1)
+            plane_data['pitch'] = round(math.degrees(msg.pitch), 1)
 
-            # Оновлюємо помилку
-            plane_data['error_roll'] = round(
-                plane_data['target_roll'] - plane_data['roll'], 2
-            )
-
-        elif msg_type == 'NAV_CONTROLLER_OUTPUT':
-            plane_data['target_roll'] = round(msg.nav_roll, 2)
-            plane_data['target_pitch'] = round(msg.nav_pitch, 2)
+        elif msg_type == 'VFR_HUD':
+            plane_data['speed'] = round(msg.groundspeed, 1)
+            plane_data['alt'] = round(msg.alt, 1)
+            plane_data['heading'] = int(msg.heading)
 
         elif msg_type == 'GLOBAL_POSITION_INT':
             plane_data['lat'] = msg.lat / 1e7
             plane_data['lon'] = msg.lon / 1e7
-            plane_data['alt'] = round(msg.relative_alt / 1000.0, 1)
-            plane_data['heading'] = int(msg.hdg / 100)
+
+        # Відправка телеметрії в веб-сокет
+        socketio.emit('telemetry', plane_data)
+        socketio.sleep(0.05)  # обов'язково для eventlet/gevent!
 
         elif msg_type == 'VFR_HUD':
             plane_data['speed'] = round(msg.airspeed, 1)
@@ -109,10 +95,7 @@ def mavlink_worker():
 def index():
     return render_template('index.html')
 
-
 if __name__ == '__main__':
-    t = threading.Thread(target=mavlink_worker, daemon=True)
-    t.start()
-
-    print("Веб-сервер запущено на http://localhost:5001")
+    socketio.start_background_task(target=mavlink_worker)
     socketio.run(app, host='0.0.0.0', port=5001, debug=False)
+    print("Веб-сервер запущено на http://localhost:5001")

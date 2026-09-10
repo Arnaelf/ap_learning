@@ -101,19 +101,25 @@ window.onload = function() {
     var marker = L.marker([-35.363262, 149.165237], {icon: planeIcon}).addTo(map);
     var track = L.polyline([], {color: 'red', weight: 2}).addTo(map);
 
-    var socket = io();
+   const socket = io();
 
-    socket.on('telemetry', function(data) {
-        // Оновлення позиції на карті
-        if (data.lat && data.lon) {
-            var pos = [data.lat, data.lon];
-            marker.setLatLng(pos);
-            track.addLatLng(pos);
-            map.setView(pos);
-            document.getElementById('coords').textContent = 
-                data.lat.toFixed(4) + ', ' + data.lon.toFixed(4);
+    socket.on('connect', () => {
+        console.log("Connected to Web GCS Server");
+    });
+
+    socket.on('telemetry', (data) => {
+        console.log("Received data:", data);
+        
+        // Оновлення текстових полів
+        if (data.roll !== undefined) document.getElementById('roll').innerText = data.roll + '°';
+        if (data.pitch !== undefined) document.getElementById('pitch').innerText = data.pitch + '°';
+        if (data.speed !== undefined) document.getElementById('speed').innerText = data.speed + ' м/с';
+        
+        // Оновлення маркера на мапі
+        if (data.lat && data.lon && planeMarker) {
+            planeMarker.setLatLng([data.lat, data.lon]);
         }
-
+    });
         // Динаміка та PID
         document.getElementById('target_roll').textContent = data.target_roll.toFixed(1);
         document.getElementById('roll').textContent = data.roll.toFixed(1);
