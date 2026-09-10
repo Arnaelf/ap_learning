@@ -76,10 +76,6 @@ def mavlink_worker():
             plane_data['lat'] = msg.lat / 1e7
             plane_data['lon'] = msg.lon / 1e7
 
-        # Відправка телеметрії в веб-сокет
-        socketio.emit('telemetry', plane_data)
-        socketio.sleep(0.05)  # обов'язково для eventlet/gevent!
-
         elif msg_type == 'VFR_HUD':
             plane_data['speed'] = round(msg.airspeed, 1)
             plane_data['throttle'] = msg.throttle
@@ -87,8 +83,9 @@ def mavlink_worker():
         elif msg_type == 'SYS_STATUS':
             plane_data['battery'] = msg.battery_remaining
 
-        # Відправляємо оновлений стан у веб-інтерфейс
-        socketio.emit('telemetry', plane_data)
+            # Відправка телеметрії в веб-сокет
+            socketio.emit('telemetry', plane_data)
+            socketio.sleep(0.05)  # обов'язково для eventlet/gevent!
 
 
 @app.route('/')
