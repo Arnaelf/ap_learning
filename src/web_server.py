@@ -31,10 +31,9 @@ plane_data = {
     'boot_time': 0.0,
 }
 
-
 def mavlink_worker():
     """Читає телеметрію з MAVLink і оновлює plane_data"""
-    master = mavutil.mavlink_connection('udpin:localhost:14550')
+    master = mavutil.mavlink_connection('udpin:127.0.0.1:14551')
     master.wait_heartbeat()
     print("MAVLink підключено до веб-сервера!")
 
