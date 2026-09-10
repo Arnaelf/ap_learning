@@ -1,0 +1,6 @@
+#GCS Configuration
+host = 192.168.64.2
+port = 5760
+protocol = mavlink
+≈
+timeout = 30
