@@ -7,92 +7,134 @@
     <script src="/static/leaflet.js"></script>
     <script src="/static/socket.io.js"></script>
     <style>
-        body { margin: 0; font-family: Arial; background: #1a1a2e; color: white; }
-        #map { height: 70vh; width: 100%; }
-        #telemetry {
+        body { margin: 0; font-family: Arial, sans-serif; background: #1a1a2e; color: white; }
+        #map { height: 55vh; width: 100%; }
+        
+        .telemetry-container {
             display: flex;
-            justify-content: space-around;
-            padding: 15px;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px 15px;
             background: #16213e;
         }
+        
+        .telemetry-row {
+            display: flex;
+            justify-content: space-around;
+            gap: 10px;
+        }
+
         .data-box {
+            flex: 1;
             text-align: center;
-            padding: 10px 20px;
+            padding: 8px 12px;
             background: #0f3460;
             border-radius: 8px;
         }
-        .data-box h3 { margin: 0; color: #e94560; font-size: 14px; }
-        .data-box p { margin: 5px 0 0; font-size: 24px; font-weight: bold; }
-        h1 { text-align: center; padding: 10px; margin: 0; background: #0f3460; }
+        .data-box h3 { margin: 0; color: #e94560; font-size: 12px; text-transform: uppercase; }
+        .data-box p { margin: 4px 0 0; font-size: 18px; font-weight: bold; }
+        .sub-val { font-size: 12px; color: #a2a8d3; font-weight: normal; }
+        
+        h1 { text-align: center; padding: 8px; margin: 0; background: #0f3460; font-size: 20px; }
     </style>
 </head>
 <body>
-    <h1>✈️ Ground Control Station</h1>
+    <h1>✈️ Ground Control Station & PID Monitor</h1>
     <div id="map"></div>
-    <div id="telemetry">
-        <div class="data-box">
-            <h3>ВИСОТА</h3>
-            <p id="alt">0 м</p>
+    
+    <div class="telemetry-container">
+        <!-- Рядок 1: Динаміка та контрольні задачі (Attitude Loop) -->
+        <div class="telemetry-row">
+            <div class="data-box">
+                <h3>ROLL (Tg / Act / Err)</h3>
+                <p><span id="target_roll">0.0</span>° / <span id="roll">0.0</span>°</p>
+                <div class="sub-val">Err: <span id="error_roll">0.0</span>° | Rate: <span id="roll_rate">0.0</span>°/s</div>
+            </div>
+            <div class="data-box">
+                <h3>PITCH (Tg / Act)</h3>
+                <p><span id="target_pitch">0.0</span>° / <span id="pitch">0.0</span>°</p>
+                <div class="sub-val">Rate: <span id="pitch_rate">0.0</span>°/s</div>
+            </div>
+            <div class="data-box">
+                <h3>YAW / RATE</h3>
+                <p id="yaw">0.0°</p>
+                <div class="sub-val">SITL Time: <span id="boot_time">0.0</span>s</div>
+            </div>
         </div>
-        <div class="data-box">
-            <h3>ШВИДКІСТЬ</h3>
-            <p id="speed">0 м/с</p>
-        </div>
-        <div class="data-box">
-            <h3>КУРС</h3>
-            <p id="heading">0°</p>
-        </div>
-        <div class="data-box">
-            <h3>ГАЗ</h3>
-            <p id="throttle">0%</p>
-        </div>
-        <div class="data-box">
-            <h3>БАТАРЕЯ</h3>
-            <p id="battery">0%</p>
-        </div>
-        <div class="data-box">
-            <h3>КООРДИНАТИ</h3>
-            <p id="coords">--</p>
+
+        <!-- Рядок 2: Просторова навігація та статус -->
+        <div class="telemetry-row">
+            <div class="data-box">
+                <h3>ВИСОТА</h3>
+                <p id="alt">0 м</p>
+            </div>
+            <div class="data-box">
+                <h3>ШВИДКІСТЬ</h3>
+                <p id="speed">0 м/с</p>
+            </div>
+            <div class="data-box">
+                <h3>КУРС</h3>
+                <p id="heading">0°</p>
+            </div>
+            <div class="data-box">
+                <h3>ГАЗ / БАТАРЕЯ</h3>
+                <p><span id="throttle">0</span>% / <span id="battery">0</span>%</p>
+            </div>
+            <div class="data-box">
+                <h3>КООРДИНАТИ</h3>
+                <p id="coords">--</p>
+            </div>
         </div>
     </div>
     
 <script>
 window.onload = function() {
-    // Ініціалізація карти
     var map = L.map('map').setView([-35.363262, 149.165237], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Іконка літака
     var planeIcon = L.divIcon({
         html: '✈️',
         iconSize: [30, 30],
         className: 'plane-icon'
     });
 
-    // Маркер літака
     var marker = L.marker([-35.363262, 149.165237], {icon: planeIcon}).addTo(map);
-
-    // Трек польоту
     var track = L.polyline([], {color: 'red', weight: 2}).addTo(map);
 
-    // WebSocket підключення
     var socket = io();
 
     socket.on('telemetry', function(data) {
-        // Оновлюємо позицію на карті
-        var pos = [data.lat, data.lon];
-        marker.setLatLng(pos);
-        track.addLatLng(pos);
-        map.setView(pos);
+        // Оновлення позиції на карті
+        if (data.lat && data.lon) {
+            var pos = [data.lat, data.lon];
+            marker.setLatLng(pos);
+            track.addLatLng(pos);
+            map.setView(pos);
+            document.getElementById('coords').textContent = 
+                data.lat.toFixed(4) + ', ' + data.lon.toFixed(4);
+        }
 
-        // Оновлюємо телеметрію
+        // Динаміка та PID
+        document.getElementById('target_roll').textContent = data.target_roll.toFixed(1);
+        document.getElementById('roll').textContent = data.roll.toFixed(1);
+        document.getElementById('error_roll').textContent = data.error_roll.toFixed(1);
+        document.getElementById('roll_rate').textContent = data.roll_rate.toFixed(1);
+
+        document.getElementById('target_pitch').textContent = data.target_pitch.toFixed(1);
+        document.getElementById('pitch').textContent = data.pitch.toFixed(1);
+        document.getElementById('pitch_rate').textContent = data.pitch_rate.toFixed(1);
+
+        document.getElementById('yaw').textContent = data.yaw.toFixed(1) + '°';
+        document.getElementById('boot_time').textContent = data.boot_time.toFixed(1);
+
+        // Навігаційні дані
         document.getElementById('alt').textContent = data.alt.toFixed(1) + ' м';
         document.getElementById('speed').textContent = data.speed.toFixed(1) + ' м/с';
         document.getElementById('heading').textContent = data.heading.toFixed(0) + '°';
-        document.getElementById('throttle').textContent = data.throttle + '%';
-        document.getElementById('battery').textContent = data.battery + '%';
-        document.getElementById('coords').textContent = 
-            data.lat.toFixed(4) + ', ' + data.lon.toFixed(4);
+        document.getElementById('throttle').textContent = data.throttle;
+        document.getElementById('battery').textContent = data.battery;
     });
 }
 </script>
+</body>
+</html>
